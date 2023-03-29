@@ -64,7 +64,8 @@ void FM::loadfile(){
     this->cell_list = new std::vector<int>[this->cells+1];
     this->net_list = new std::vector<int>[this->nets+1];
     this->cell_neighbor = new std::vector<int>[this->cells+1];
-
+    if(cells < 50000)
+        this->net_set = new unordered_set<int>[cells+1];
     int i=0; // current read net
     P_MAX = 0;
     while(getline(fin, line)){
@@ -73,6 +74,8 @@ void FM::loadfile(){
         while(ss >> in){
             this->net_list[i].push_back(in);
             this->cell_list[in].push_back(i);
+            if(cells < 50000)
+                net_set[in].insert(i);
             if(cell_list[in].size() > P_MAX)
                 P_MAX = cell_list[in].size();
         }
@@ -129,33 +132,47 @@ void FM::initial_partition(){
         unordered_set<int> tmp;
         queue<int> q;
         stack<int> s;
-        s.push(random()%cells + 1);
+        q.push(random()%cells + 1);
         while(size_A < cells/2){
-            int cell = s.top();
-            s.pop();
+            int cell = q.front();
+            q.pop();
             if(tmp.count(cell)){
-                if(s.empty()){
-                    s.push(random()%cells + 1);
+                if(q.empty()){
+                    q.push(random()%cells + 1);
                 }
                 continue;
             }
+
             tmp.insert(cell);
             cell_side[cell] = 0;
             size_A++;
             old_side[cell] = 0;
+            
+            int max_conn = cells;
+            int max_idx = -1;
             for(auto n : cell_neighbor[cell]){
-                if(!tmp.count(n))
-                    s.push(n);
-            }
+                if(tmp.count(n))
+                    continue;
 
-            if(s.empty())
-                s.push(random()%cells + 1);
+                int conn = 0;
+                unordered_set<int> connect_net;
+                for(auto cn : cell_list[cell])
+                    if(net_set[n].count(cn))
+                        conn++;
+                if(conn < max_conn){
+                    max_conn = conn;
+                    max_idx = n;
+                }
+            }
+            if(max_idx != -1)
+                q.push(max_idx);
+            if(q.empty())
+                q.push(random()%cells + 1);
         }
         old_size_A = size_A;
         for(int i=1;i<=cells;i++)
             if(!tmp.count(i))
                 cell_side[i] = 1;
-        cout<<"size A  "<<size_A<<endl;
     }
 }
 
