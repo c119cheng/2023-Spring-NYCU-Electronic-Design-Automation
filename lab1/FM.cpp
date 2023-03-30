@@ -19,7 +19,7 @@ FM::~FM(){
 }
 
 void FM::sol(){
-    srand(s);
+    // srand(s);
     this->stop_FM = false;
     auto start_time = chrono::system_clock::now();
     this->loadfile();
@@ -51,139 +51,6 @@ void FM::sol(){
            break;
     }
     
-    /*
-    getCuts();
-    // Simulated Annealing
-    float T = 10;
-    float T_stop = pow(10,-12);
-    float r = 0.99;
-    int N = cells;
-    int prev_cost = cut;
-    int cur_cost = cut; 
-    int count = 0;
-    int best = cut;
-    cout<<"SA"<<endl;
-    while(chrono::system_clock::now() - start_time < chrono::seconds(25) && T >= T_stop){
-        for(int i=0;i<N;i++){
-            if(i%10 == 0){
-                //move from side set to another
-                bool side = random()%2;
-                if((side && size_A >= max) || (!side && size_A <= min))
-                    continue;
-                int cell = random()%cells + 1;
-                while(cell_side[cell] != side)
-                    cell = random()%cells + 1;
-                int gain = 0;
-                cal_gain(cell, gain);
-                bool do_work = false;
-                if(gain > 0){
-                    do_work = true;
-                }
-                else{
-                    float ex = gain/T;
-                    float p = exp(ex);
-                    float th = float(rand())/float(RAND_MAX);
-                    if(p >= th)
-                        do_work = true;
-                }
-                if(do_work){
-                    cout<<"do something  "<<cell<<endl;
-                    cell_side[cell] = !side;
-                    cur_cost -= gain;
-                    if(side)
-                        size_A++;
-                    else
-                        size_A--;
-                }
-            }
-            else if(i%10 < 5){
-                //swap two cell
-                int cell_A = random()%cells + 1;
-                int cell_B = random()%cells + 1;
-                while(cell_side[cell_A] != 0){
-                    cell_A = random()%cells + 1;
-                }
-                while(cell_side[cell_B] != 1){
-                    cell_B = random()%cells + 1;
-                }
-
-                int gain = 0;
-                cal_coGain(cell_A, cell_B, gain);
-                bool do_work = false;
-                if(gain > 0){
-                    do_work = true;
-                }
-                else{
-                    float ex = gain/T;
-                    float p = exp(ex);
-                    float th = float(rand())/float(RAND_MAX);
-                    if(p >= th)
-                        do_work = true;
-                }
-                if(do_work){
-                    cout<<"do something swap "<<endl;
-                    cell_side[cell_A] = 1;
-                    cell_side[cell_B] = 0;
-                    cur_cost -= gain;
-                }
-            }
-            else{
-                // move a net
-                int n = random()%nets;
-                int size = net_list[n].size();
-                if(size_A - size <= min || size_A + size >= max)
-                    continue;
-                int target = cell_side[*net_list[n].begin()];
-                int gain = 0;
-                for(auto c : net_list[n]){
-                    if(cell_side[c] != target)
-                        cal_gain(c, gain);
-                }
-                bool do_work = false;
-                if(gain > 0){
-                    do_work = true;
-                }
-                else{
-                    float ex = gain/T;
-                    float p = exp(ex);
-                    float th = float(rand())/float(RAND_MAX);
-                    if(p >= th)
-                        do_work = true;
-                }
-                if(do_work){
-                    cout<<"do something swap line "<<endl;
-                    for(auto c : net_list[n]){
-                        if(cell_side[c] != target)
-                            cell_side[c] = target;
-                        cur_cost -= gain;
-                    }
-                    printCuts();
-                    cur_cost = cut;
-                }
-            }
-
-            //update
-            T *= r;
-            if(prev_cost == cur_cost)
-                count++;
-            else
-                count = 0;
-            if(count >= 100)
-                break;
-            prev_cost = cur_cost;
-            if(cur_cost < best){
-                best = cur_cost;
-                for(int i=1;i<=cells;i++)
-                    old_side[i] = cell_side[i];
-            }
-            cout<<T<<"   "<<cur_cost<<endl;
-        }
-    }
-    
-    for(int i=1;i<=cells;i++)
-        cell_side[i] = old_side[i];
-    cout<<"best cut "<<best<<endl;
-    */
     getCuts();
     cout<<"start output"<<endl;
     output();

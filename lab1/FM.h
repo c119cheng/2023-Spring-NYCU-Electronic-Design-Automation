@@ -46,11 +46,9 @@ class FM{
         int *step_move;
         bool stop_FM;
         bool balance;
-
+        int cut;
 
     public:
-    int s;
-            int cut;
         FM(char *);
         ~FM();
         void sol();
