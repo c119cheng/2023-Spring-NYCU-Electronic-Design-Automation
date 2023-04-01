@@ -7,6 +7,6 @@ using namespace std;
 int main(int argc, char **argv){
     FM t = FM(argv[1]);
     // #pragma omp parallel for num_threads(4)
-    t.sol();
+    t.test();
     return 0;
 }

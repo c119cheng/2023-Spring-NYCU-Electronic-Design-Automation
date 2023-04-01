@@ -1,12 +1,12 @@
 #ifndef FM_H
 #define FM_H
-#include "list.h"
 #include <unordered_set>
 #include <map>
 #include <vector>
 #include <chrono>
 #include <ctime>
 #include <stack>
+#include <list>
 using namespace std;
 class FM{
     private:
@@ -17,7 +17,9 @@ class FM{
         
         vector<int> *cell_list; //cell[i] conneted nets
         vector<int> *net_list; //net[i] connected cells
-        std::vector<int> *cell_neighbor;
+        vector<int> net_A_size; // num of cell on net[i] is on left partition
+        vector<int> net_B_size; 
+        std::unordered_set<int> *cell_neighbor;
         unordered_set<int> *net_set;
         // acceptable partition size
         int min; //minimun acceptable partition size
@@ -31,8 +33,6 @@ class FM{
 
         int size_B;
 
-        int cur_gain;
-        int total_gain;
         // bucket list for gain
         // bool *is_locked;
         int P_MAX;
@@ -62,9 +62,12 @@ class FM{
         void printCuts();
         void make_bucket();
         void printGainList();
-        void initial_partition();
+        void initial_partition(int);
         void real_FM();
         void getCuts();
+        void test();
+        void cal_all_gain();
+        void update_gain(const int&);
 };
 
 

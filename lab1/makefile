@@ -1,8 +1,8 @@
 
 CC = g++
-CFLAGS = -Wall -std=c++17 -O3 -fopenmp
+CFLAGS =  -std=c++17 -O3 -fopenmp
 MAIN_FILE = main.o
-LINK_FILES = FM.o list.o
+LINK_FILES = FM.o
 EXE_FILE = Lab1
 
 #---------------------

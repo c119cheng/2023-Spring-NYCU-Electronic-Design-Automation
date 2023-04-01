@@ -8,6 +8,8 @@
 #include <queue>
 #include <algorithm>
 #include <cmath>
+#include <list>
+#include <utility>
 using namespace std;
 
 FM::FM(char *file_name){
@@ -18,19 +20,90 @@ FM::~FM(){
 
 }
 
+
+void FM::test(){
+    auto start_time = chrono::system_clock::now();
+    this->loadfile();
+    int best = nets;
+    vector<int> best_side(cells+1);
+    int prev = nets;
+    int count = 0;
+    while(1){
+        size_A = 0;
+        size_B = 0;
+        int initial_net = random()%(nets);
+        this->initial_partition(initial_net);
+        for(int i=1;i<=cells;i++)
+            old_side[i] = cell_side[i];
+
+        old_size_A = size_A;
+
+        stop_FM = false;
+        // printCuts();
+        while(!stop_FM){
+            for(int i=0;i<nets;i++){
+                net_A_size[i] = 0;
+                net_B_size[i] = 0;
+                for(const auto& cell:net_list[i]){
+                    if(cell_side[cell]){
+                        net_B_size[i]++;
+                    }
+                    else{
+                        net_A_size[i]++;
+                    }
+                }
+            }
+
+
+            cal_all_gain();
+            make_bucket();
+            real_FM();
+            auto now = chrono::system_clock::now();
+            if(now - start_time > chrono::seconds(25))
+                break;
+        }
+        getCuts();
+        // cout<<"Cuts "<<this->cut<<endl;
+
+        bool balance = (size_A >= min && size_A <= max);
+        if(cut < best && balance){
+            best = cut;
+            for(int i=1;i<=cells;i++){
+                best_side[i] = cell_side[i];
+            }
+        }
+        if(prev == best)
+            count++;
+        if(count > 100)
+            break;
+        prev = best;
+    
+        auto now = chrono::system_clock::now();
+        if(now - start_time > chrono::seconds(25))
+            break;
+    }
+    for(int i=1;i<=cells;i++)
+        cell_side[i] = best_side[i];
+
+    output();
+}
+
 void FM::sol(){
     // srand(s);
     this->stop_FM = false;
     auto start_time = chrono::system_clock::now();
     this->loadfile();
-    this->initial_partition();
+    this->initial_partition(2);
+
+    for(int i=1;i<=cells;i++)
+        old_side[i] = cell_side[i];
+    old_size_A = size_A;
+    cout<<"size A "<<size_A<<"  size B  "<<size_B<<endl;
+    cout<<"min  "<<min<<"   max   "<<max<<endl;
     printCuts();
-    cur_gain = 0;
-    total_gain = 0;
-    // old_size_A = size_A;
     make_gain_list();
     int old_cur = nets;
-    while(!stop_FM && cells > 50000){
+    while(!stop_FM && cells > 50000 && 0){
         cout<<"start FM"<<endl;
         make_bucket();
         cout<<"FM MOVE"<<endl;
@@ -52,9 +125,9 @@ void FM::sol(){
     }
     
     getCuts();
-    cout<<"start output"<<endl;
+    // cout<<"start output"<<endl;
     output();
-    cout<<"finish output"<<endl;
+    // cout<<"finish output"<<endl;
 }
 
 void FM::loadfile(){
@@ -66,10 +139,11 @@ void FM::loadfile(){
     ss.clear();
     
     this->cell_list = new std::vector<int>[this->cells+1];
-    this->net_list = new std::vector<int>[this->nets+1];
-    this->cell_neighbor = new std::vector<int>[this->cells+1];
-    if(cells < 50000)
-        this->net_set = new unordered_set<int>[cells+1];
+    this->net_list = new std::vector<int>[this->nets];
+    this->net_A_size = vector<int>(this->nets, 0);
+    this->net_B_size = vector<int>(this->nets, 0);
+    this->cell_neighbor = new std::unordered_set<int>[this->cells+1];
+    
     int i=0; // current read net
     P_MAX = 0;
     while(getline(fin, line)){
@@ -78,8 +152,6 @@ void FM::loadfile(){
         while(ss >> in){
             this->net_list[i].push_back(in);
             this->cell_list[in].push_back(i);
-            if(cells < 50000)
-                net_set[in].insert(i);
             if(cell_list[in].size() > P_MAX)
                 P_MAX = cell_list[in].size();
         }
@@ -87,8 +159,8 @@ void FM::loadfile(){
         i++;
     }
 
-    this->set_A = vector<unordered_set<int>>(2*P_MAX+1);
-    this->set_B = vector<unordered_set<int>>(2*P_MAX+1);
+    this->set_A = vector< unordered_set<int> >(2*P_MAX+1);
+    this->set_B = vector< unordered_set<int> >(2*P_MAX+1);
 
     // 0.45 balance factor given by TA
     this->min = (this->cells ) * 0.451;
@@ -106,104 +178,145 @@ void FM::loadfile(){
     this->step_move = new int[this->cells];
 
     // making neighbor set
-    unordered_set<int> *cn = new unordered_set<int>[cells+1]; // cell neighbor set
-    // for(auto c : locked){
-    for(int c=1;c<=cells;c++){
-        for(auto connect_net : cell_list[c]){
-            for(auto cur_cell : net_list[connect_net]){
-                if(cur_cell != c){
-                    if(!cn[cur_cell].count(c)){
-                        cn[cur_cell].insert(c);
-                        cell_neighbor[cur_cell].push_back(c);
-                    }
+}
+
+void FM::initial_partition(int in=1){
+    vector<bool> tmp(cells+1, false);
+    for(int i=in;i<nets;i++){
+        bool side_A = false;
+        bool side_B = false;
+        for(const auto& cell : net_list[i])
+            if(tmp[cell]){
+                if(cell_side[cell])
+                    side_B = true;
+                else
+                    side_A = true;
+            }
+
+        bool side;
+        if(side_A && side_B){
+            continue;
+        }
+        else if(side_A){
+            side = 0;
+        }
+        else if(side_B){
+            side = 1;
+        }
+        else{
+            if(size_A > size_B)
+                side = 1;
+            else
+                side = 0;
+        }
+
+        for(const auto& cell : net_list[i]){
+            if(!tmp[cell]){
+                if(side && size_B <= max){
+                    cell_side[cell] = 1;
+                    size_B++;
                 }
+                else{
+                    cell_side[cell] = 0;
+                    size_A++;
+                }
+                tmp[cell] = 1;
             }
         }
     }
-}
+    // vector<bool> tmp(cells+1, false);
+    // int ini = in;
+    for(int i=0;i<in;i++){
+        bool side_A = false;
+        bool side_B = false;
+        for(const auto& cell : net_list[i])
+            if(tmp[cell]){
+                if(cell_side[cell])
+                    side_B = true;
+                else
+                    side_A = true;
+            }
 
-void FM::initial_partition(){
-    if(cells > 50000){
-        size_A = 0;
-        for(int i=1;i<=cells;i++){
-            if(random()%20000 ==0){
-                cell_side[i] = 1;
-                old_side[i] = 1;
+        bool side;
+        if(side_A && side_B){
+            continue;
+        }
+        else if(side_A){
+            side = 0;
+        }
+        else if(side_B){
+            side = 1;
+        }
+        else{
+            if(size_A > size_B)
+                side = 1;
+            else
+                side = 0;
+        }
+
+        for(const auto& cell : net_list[i]){
+            if(!tmp[cell]){
+                if(side && size_B <= max){
+                    cell_side[cell] = 1;
+                    size_B++; 
+                }
+                else{
+                    cell_side[cell] = 0;
+                    size_A++;
+                }
+                tmp[cell] = 1;
+            }
+        }
+    }
+
+    for(int i=1;i<=cells;i++){
+        if(!tmp[i]){
+            if(size_A <= cells/2){
+                cell_side[i] = 0;
+                size_A++;
+                for(const auto& n:cell_list[i])
+                    net_A_size[n]++;
             }
             else{
-                cell_side[i] = 0;
-                old_side[i] = 0;
-                size_A++;
-            }
-        }
-        old_size_A = size_A;
-        cout<<size_A<<endl;
-        balance = false;
-    }
-    else{
-        /*
-        unordered_set<int> tmp;
-        queue<int> q;
-        q.push(random()%cells + 1);
-        while(size_A < min){
-            int cell = q.front();
-            q.pop();
-            if(tmp.count(cell)){
-                if(q.empty()){
-                    q.push(random()%cells + 1);
-                }
-                continue;
-            }
-
-            tmp.insert(cell);
-            cell_side[cell] = 0;
-            size_A++;
-            old_side[cell] = 0;
-            
-            int max_conn = -1;
-            int max_idx = -1;
-            for(auto n : cell_neighbor[cell]){
-                if(tmp.count(n))
-                    continue;
-
-                float conn = 0; 
-                for(auto cn : cell_list[cell])
-                    if(net_set[n].count(cn))
-                        conn += 1.0/net_list[cn].size();
-                if(conn > max_conn){
-                    max_conn = conn;
-                    max_idx = n;
-                }
-            }
-            if(max_idx != -1)
-                q.push(max_idx);
-            if(q.empty())
-                q.push(random()%cells + 1);
-        }
-        */
-        // current best
-        unordered_set<int> tmp;
-        for(int i=1;i<=cells;i++){
-            if(i<=min){
-                tmp.insert(i);
-                cell_side[i] = 0;
-                size_A++;
-                old_side[i] = 0;
-            }
-        }
-        
-
-        old_size_A = size_A;
-        for(int i=1;i<=cells;i++){
-            if(!tmp.count(i)){
                 cell_side[i] = 1;
-                old_side[i] = 1;
+                size_B++;
+                for(const auto& n:cell_list[i])
+                    net_B_size[n]++;
             }
         }
-
-        
     }
+
+    for(int i=0;i<nets;i++){
+        net_A_size[i] = 0;
+        net_B_size[i] = 0;
+        for(const auto& cell:net_list[i]){
+            if(cell_side[cell]){
+                net_B_size[i]++;
+            }
+            else{
+                net_A_size[i]++;
+            }
+        }
+    }
+
+    /*
+    // for debug
+    for(int i=1;i<=cells;i++){
+        cout<<"cell "<<i<<" is in side "<<cell_side[i]<<endl;
+    }
+    for(int i=0;i<nets;i++){
+        cout<<"net "<<i<<" side A and B are "<<net_A_size[i]<<"  "<<net_B_size[i]<<endl;
+    }
+    */
+    /*
+    balance = (size_A >= min && size_A <= max);   
+    cout<<"initial balance "<<balance<<endl;
+    getCuts();
+    cout<<"initial cuts "<<cut<<endl;
+    cout<< size_A <<"   "<<size_B<<endl;
+    */
 }
+
 
 void FM::make_gain_list(){
     for(int i=0;i<=2*P_MAX;i++){
@@ -212,6 +325,7 @@ void FM::make_gain_list(){
     }
     set_A_ptr = 0;
     set_B_ptr = 0;
+    
     for(int c=1;c<=cells;c++){
         int gain = P_MAX;
         cal_gain(c, gain);
@@ -229,6 +343,7 @@ void FM::make_gain_list(){
         }
         locked[c] = 0;
     }
+    
 }
 
 void FM::cal_gain(const int& in, int& gain){
@@ -261,10 +376,42 @@ void FM::cal_gain(const int& in, int& gain){
     }
 }
 
+void FM::cal_all_gain(){
+    for(int i=1;i<=cells;i++)
+        cell_gain[i] = 0;
+
+    for(int i=0;i<nets;i++){
+        if(net_A_size[i] > 1 && net_B_size[i] > 1)
+            continue;
+        if(net_A_size[i] == 1){
+            for(const auto&cell : net_list[i]){
+                if(cell_side[cell] == 0){
+                    cell_gain[cell]++;
+                    break;
+                }
+            }
+        }
+        else if(net_A_size[i] == 0){
+            for(auto const& cell : net_list[i])
+                cell_gain[cell]--;
+        }
+        if(net_B_size[i] == 1){
+            for(const auto& cell : net_list[i]){
+                if(cell_side[cell] == 1){
+                    cell_gain[cell]++;
+                    break;
+                }
+            }
+        }
+        else if(net_B_size[i] == 0){
+            for(auto const& cell : net_list[i])
+                cell_gain[cell]--;
+        }
+    }
+}
+
 void FM::update_neighbor(const int& in){
     for(const auto& c : cell_neighbor[in]){
-        if(cell_neighbor[c].size() > 1000 && cells > 10000)
-            continue;
         if(locked[c] == 0){
             int gain = P_MAX;
             cal_gain(c, gain);
@@ -286,12 +433,136 @@ void FM::update_neighbor(const int& in){
     }
 }
 
+void FM::update_gain(const int& in){
+    // reserve cell gain
+    unordered_set<int> visited;
+    vector< std::pair<int, int> > pre_gain;
+
+    for(const auto& i : cell_list[in]){
+        if(cell_side[in]){
+            // From A to B
+            if(net_B_size[i] == 0){
+                for(const auto& cell : net_list[i])
+                    if(!locked[cell]){
+                        if(!visited.count(cell)){
+                            pre_gain.push_back({cell, cell_gain[cell]});
+                            visited.insert(cell);
+                        }
+                        cell_gain[cell]++;
+                    }
+            }
+            else if(net_B_size[i] == 1){
+                for(const auto& cell : net_list[i])
+                    if(!locked[cell] && cell_side[cell] == 1){
+                        if(!visited.count(cell)){
+                            pre_gain.push_back({cell, cell_gain[cell]});
+                            visited.insert(cell);
+                        }
+                        cell_gain[cell]--;
+                        break;
+                    }
+            }
+            net_B_size[i]++;
+            net_A_size[i]--;
+
+            if(net_A_size[i] == 0){
+                for(const auto& cell : net_list[i])
+                    if(!locked[cell]){
+                        if(!visited.count(cell)){
+                            pre_gain.push_back({cell, cell_gain[cell]});
+                            visited.insert(cell);
+                        }
+                        cell_gain[cell]--;
+                    }
+            }
+            else if(net_A_size[i] == 1){
+                for(const auto& cell : net_list[i])
+                    if(!locked[cell] && cell_side[cell] == 0){
+                        if(!visited.count(cell)){
+                            pre_gain.push_back({cell, cell_gain[cell]});
+                            visited.insert(cell);
+                        }
+                        cell_gain[cell]++;
+                        break;
+                    }
+            }
+        }       
+        else{
+            // From B to A
+            if(net_A_size[i] == 0){
+                for(const auto& cell : net_list[i])
+                    if(!locked[cell]){
+                        if(!visited.count(cell)){
+                            pre_gain.push_back({cell, cell_gain[cell]});
+                            visited.insert(cell);
+                        }
+                        cell_gain[cell]++;
+                    }
+            }
+            else if(net_A_size[i] == 1){
+                for(const auto& cell : net_list[i])
+                    if(!locked[cell] && cell_side[cell] == 0){
+                        if(!visited.count(cell)){
+                            pre_gain.push_back({cell, cell_gain[cell]});
+                            visited.insert(cell);
+                        }
+                        cell_gain[cell]--;
+                        break;
+                    }
+            }
+            net_A_size[i]++;
+            net_B_size[i]--;
+
+            if(net_B_size[i] == 0){
+                for(const auto& cell : net_list[i])
+                    if(!locked[cell]){
+                        if(!visited.count(cell)){
+                            pre_gain.push_back({cell, cell_gain[cell]});
+                            visited.insert(cell);
+                        }
+                        cell_gain[cell]--;
+                    }
+            }
+            else if(net_B_size[i] == 1){
+                for(const auto& cell : net_list[i])
+                    if(!locked[cell] && cell_side[cell] == 1){
+                        if(!visited.count(cell)){
+                            pre_gain.push_back({cell, cell_gain[cell]});
+                            visited.insert(cell);
+                        }
+                        cell_gain[cell]++;
+                        break;
+                    }
+            }
+        }
+    }
+
+    // update bucket list
+    for(const auto p : pre_gain){
+        if(cell_gain[p.first] != p.second){
+            if(cell_side[p.first]){
+                set_B[p.second + P_MAX].erase(p.first);
+                set_B[cell_gain[p.first] + P_MAX].insert(p.first);
+                if(set_B_ptr < cell_gain[p.first] + P_MAX)
+                    set_B_ptr = cell_gain[p.first] + P_MAX;
+            }
+            else{
+                set_A[p.second + P_MAX].erase(p.first);
+                set_A[cell_gain[p.first] + P_MAX].insert(p.first);
+                if(set_A_ptr < cell_gain[p.first] + P_MAX)
+                    set_A_ptr = cell_gain[p.first] + P_MAX;
+            }
+        }
+    }
+}
+
 void FM::output(){
     FILE *output = fopen("output.txt", "w");
     for(int i=1;i<=cells;i++){
         fprintf(output, "%d\n", (int)cell_side[i]);
     }
     fclose(output);
+    // cout<<"finish output"<<endl;
 }
 
 void FM::printCuts(){
@@ -321,20 +592,26 @@ void FM::getCuts(){
 }
 
 void FM::make_bucket(){
+    for(int i=0;i<=2*P_MAX;i++){
+        set_A[i].clear();
+        set_B[i].clear();
+    }
     // set_A = vector<unordered_set<int>>(2*P_MAX+1);
     // set_B = vector<unordered_set<int>>(2*P_MAX+1);
     set_B_ptr = 0;
     set_A_ptr = 0;
     for(int i=1;i<=cells;i++){
         if(cell_side[i]){
-            set_B[cell_gain[i] + P_MAX].insert(i);
-            if(set_B_ptr < cell_gain[i] + P_MAX)
-                set_B_ptr = cell_gain[i] + P_MAX;
+            int idx = cell_gain[i] + P_MAX;
+            set_B[idx].insert(i);
+            if(set_B_ptr < idx)
+                set_B_ptr = idx;
         }
         else{
-            set_A[cell_gain[i] + P_MAX].insert(i);
-            if(set_A_ptr < cell_gain[i] + P_MAX)
-                set_A_ptr = cell_gain[i] + P_MAX;
+            int idx = cell_gain[i] + P_MAX;
+            set_A[idx].insert(i);
+            if(set_A_ptr < idx)
+                set_A_ptr = idx;
         }
         locked[i] = 0;
     }
@@ -357,11 +634,10 @@ void FM::printGainList(){
 }
 
 void FM::FM_move(){
-    int iter_time = cells/2;
-    int max_gain = total_gain;
-    // int cur_gain = total_gain;
-    // total_gain = 0;
-    // cur_gain = 0;
+    int iter_time = cells;
+    int max_gain = 0;
+    int cur_gain = 0;
+    int total_gain = 0;
     int max_idx = 0;
     for(int lock_num=1;lock_num<=iter_time;lock_num++){
         while(set_A[set_A_ptr].empty()){
@@ -425,58 +701,53 @@ void FM::real_FM(){
     int max_gain = 0;
     int max_idx = 0;
     for(int lock_num=1;lock_num<=iter_time;lock_num++){
-        while(set_A[set_A_ptr].empty()){
+        while(set_A_ptr >= 0 &&set_A[set_A_ptr].empty()){
             set_A_ptr--;
         }
-        while(set_B[set_B_ptr].empty()){
+        while(set_B_ptr >= 0 &&set_B[set_B_ptr].empty()){
             set_B_ptr--;
         }
+        int cell;
 
         if(set_A_ptr < 0 && set_B_ptr < 0){
             break;
         }
-        int cell;
-        if(size_A < min || set_A_ptr < 0){
+        else if(set_A_ptr < 0){
             cell = *set_B[set_B_ptr].begin();
             set_B[set_B_ptr].erase(cell);
             size_A++;
         }
-        else if(size_A >= max || set_B_ptr < 0){
+        else if(set_B_ptr < 0){
             cell = *set_A[set_A_ptr].begin();
             set_A[set_A_ptr].erase(cell); 
-            size_A--;
+            size_A--;     
         }
-        else if((set_A_ptr > set_B_ptr && size_A > min)){
+        else if((set_A_ptr > set_B_ptr && size_A > min) || size_A >= max){
             cell = *set_A[set_A_ptr].begin();
             set_A[set_A_ptr].erase(cell); 
             size_A--;
         }
         else{
-            cell = *set_A[set_A_ptr].begin();
-            set_A[set_A_ptr].erase(cell); 
-            size_A--;
+            cell = *set_B[set_B_ptr].begin();
+            set_B[set_B_ptr].erase(cell);
+            size_A++;
         }
 
         locked[cell] = 1;
         cell_side[cell] = !cell_side[cell];
         step_move[lock_num] = cell;
-        update_neighbor(cell);
+        // update_neighbor(cell);
+        update_gain(cell);
+
         total_gain += cell_gain[cell];
         if(total_gain >= max_gain){
             max_gain = total_gain;
             max_idx = lock_num;
         }
     }
-
+    // cout<<"balance  "<<balance<<endl;
     if(max_gain <= 0){
-        size_A = 0;
         stop_FM = true;
-        for(int i=1;i<=cells;i++){
-            cell_side[i] = old_side[i];
-            if(!cell_side[i])
-                size_A++;
-        }
-        return ;
     }
     
     for(int i=1;i<=max_idx;i++)
@@ -487,7 +758,7 @@ void FM::real_FM(){
         if(!cell_side[i])
             size_A++;
     }
-    cout<<"step gain: "<<max_gain<<endl;
+    // cout<<"step gain: "<<max_gain<<endl;
 }
 
 void FM::cal_coGain(const int& in_A, const int& in_B, int& gain){
