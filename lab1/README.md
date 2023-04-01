@@ -1,23 +1,23 @@
-
+The output file is fixed name output.txt
 
 # To complile
-'''bash
+```bash
     make
-'''
+```
 
 # To run 3 sample case and verify
-'''bash
+```bash
     make demo1
     make demo2
     make demo3
-'''
+```
 
 # To run with any input file
-'''bash
+```bash
     ./Lab1 [input file name]
-'''
+```
 
 # To delete binary and object file
-'''bash
+```bash
     make clean
-'''
+```
