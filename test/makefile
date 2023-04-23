@@ -25,10 +25,6 @@ demo3:
 	time ./$(EXE_FILE) input3.txt.hgr
 	./verifier input3.txt.hgr output.txt
 
-demo4:
-	time ./$(EXE_FILE) input4.txt.hgr
-	./verifier input4.txt.hgr output.txt
-
 s1:
 	./shmetis input.hgr 2 5
 s2:
