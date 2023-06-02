@@ -62,21 +62,59 @@ void AtpgObj::BuildFromPath_NR(PATH *pptr)
 	TRANSITION CurT, PreT;
 	assert(pptr->NoGate()==pptr->NoTrans());
 
-	PreG=/* input gate on sensitive path*/
-	PreT=/* input transition on sensitive path*/
+	/* input gate on sensitive path*/
+	PreG = pptr->GetGate(0);
+	/* input transition on sensitive path*/
+	PreT = pptr->GetTrans(0);
 	
 	// Fault Activation at 1st TimeFrame
-	if(PreT==R) AddObj(ToCUTName(PreG, 0), /*value*/);
-	else if(PreT==F) AddObj(ToCUTName(PreG, 0), /*value*/);
+	if(PreT==R) AddObj(ToCUTName(PreG, 0), 0/*value*/);
+	else if(PreT==F) AddObj(ToCUTName(PreG, 0), 1/*value*/);
 	else { cerr<<"R/F Error !"<<endl; exit(-1); }
 
 	// Fault Activation at 2nd TimeFrame 
-	if(PreT==R) AddObj(ToCUTName(PreG, 1), /*value*/);
-	else if(PreT==F) AddObj(ToCUTName(PreG, 1), /*value*/);
+	if(PreT==R) AddObj(ToCUTName(PreG, 1), 1/*value*/);
+	else if(PreT==F) AddObj(ToCUTName(PreG, 1), 0/*value*/);
 	else { cerr<<"R/F Error !"<<endl; exit(-1); }
 	
    /*Fault Propagation = off-input setting on sensitive path */
+	for(int i=1; i<pptr->NoGate();i++){
+		CurG = pptr->GetGate(i);
+		CurT = pptr->GetTrans(i);
 
+		switch(CurG->GetFunction()){
+			case G_PI:
+				//1st Timeframe
+				AddObj(ToCUTName(CurG, 0), CurT);
+
+				//2nd Timeframe
+				AddObj(ToCUTName(CurG, 1), CurT);
+			break;
+			
+			case G_AND:
+			case G_NAND:
+				// set all off-input to 1
+				for(int j=0;j<CurG->NoFanin();j++)
+					if(PreG != CurG->Fanin(j))
+						AddObj(ToCUTName(CurG->Fanin(j), 1), 1);
+			break;
+
+			case G_OR:
+			case G_NOR:
+				// set all off-input to 0
+				for(int j=0;j<CurG->NoFanin();j++)
+					if(PreG != CurG->Fanin(j))
+						AddObj(ToCUTName(CurG->Fanin(j), 1), 0);
+			break;
+
+			default:
+			break;	
+		}
+
+		PreT = CurT;
+		PreG = CurG;
+
+	}
 	
 }
 
@@ -89,6 +127,67 @@ void AtpgObj::BuildFromPath_R(PATH *pptr)
     
 	/*Do Fault Activation & Fault Propagation under Robust test setting*/
 
+	/* input gate on sensitive path*/
+	PreG = pptr->GetGate(0);
+	/* input transition on sensitive path*/
+	PreT = pptr->GetTrans(0);
+	
+	// Fault Activation at 1st TimeFrame
+	if(PreT==R) AddObj(ToCUTName(PreG, 0), 0/*value*/);
+	else if(PreT==F) AddObj(ToCUTName(PreG, 0), 1/*value*/);
+	else { cerr<<"R/F Error !"<<endl; exit(-1); }
+
+	// Fault Activation at 2nd TimeFrame 
+	if(PreT==R) AddObj(ToCUTName(PreG, 1), 1/*value*/);
+	else if(PreT==F) AddObj(ToCUTName(PreG, 1), 0/*value*/);
+	else { cerr<<"R/F Error !"<<endl; exit(-1); }
+	
+   /*Fault Propagation = off-input setting on sensitive path */
+	for(int i=1; i<pptr->NoGate();i++){
+		CurG = pptr->GetGate(i);
+		CurT = pptr->GetTrans(i);
+
+		switch(CurG->GetFunction()){
+			case G_PI:
+				//1st Timeframe
+				AddObj(ToCUTName(CurG, 0), CurT);
+
+				//2nd Timeframe
+				AddObj(ToCUTName(CurG, 1), CurT);
+			break;
+			
+			case G_AND:
+			case G_NAND:
+				// set all off-input to 1
+				for(int j=0;j<CurG->NoFanin();j++)
+					if(PreG != CurG->Fanin(j)){
+						AddObj(ToCUTName(CurG->Fanin(j), 1), 1);
+						if(PreT == F){
+							AddObj(ToCUTName(CurG->Fanin(j), 0), 1);
+						}
+					}
+			break;
+
+			case G_OR:
+			case G_NOR:
+				// set all off-input to 0
+				for(int j=0;j<CurG->NoFanin();j++)
+					if(PreG != CurG->Fanin(j)){
+						AddObj(ToCUTName(CurG->Fanin(j), 1), 0);
+						if(PreT == R){
+							AddObj(ToCUTName(CurG->Fanin(j), 0), 0);
+						}
+					}
+			break;
+
+			default:
+			break;	
+		}
+
+		PreT = CurT;
+		PreG = CurG;
+
+	}
 }
 
 
